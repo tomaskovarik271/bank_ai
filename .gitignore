@@ -1,0 +1,11 @@
+# Ignore Node modules
+node_modules/
+
+# Ignore .env file containing secrets
+.env
+
+# Ignore Netlify state (for netlify dev)
+.netlify/
+
+# Ignore macOS system files
+.DS_Store 

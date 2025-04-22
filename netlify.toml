@@ -1,0 +1,9 @@
+[build]
+  publish = "public/"
+  functions = "functions/"
+
+# Redirect rule for API calls (example)
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200 

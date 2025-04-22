@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank AI PoC</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        button { margin: 5px; padding: 10px 15px; cursor: pointer; }
+        pre { background-color: #eee; padding: 10px; border: 1px solid #ccc; overflow-x: auto; }
+        #profile, #error { margin-top: 20px; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h1>Bank AI PoC</h1>
+
+    <div id="auth-buttons">
+        <button id="loginBtn">Log In / Sign Up</button>
+    </div>
+
+    <div id="user-info" class="hidden">
+        <p>Welcome, <span id="userName"></span>!</p>
+        <button id="logoutBtn">Log Out</button>
+        <button id="profileBtn">Get Profile</button>
+    </div>
+
+    <div id="profile" class="hidden">
+        <h2>Profile Data (from backend)</h2>
+        <pre id="profileData"></pre>
+    </div>
+
+    <div id="error" class="hidden">
+        <h2>Error</h2>
+        <pre id="errorData"></pre>
+    </div>
+
+    <!-- Auth0 SPA SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@auth0/auth0-spa-js@2.1/dist/auth0-spa-js.production.js"></script>
+
+    <!-- Supabase Client (only needed if frontend needs direct Supabase access - not used in this basic PoC) -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script> -->
+
+    <!-- App logic -->
+    <script src="/app.js"></script>
+</body>
+</html> 
