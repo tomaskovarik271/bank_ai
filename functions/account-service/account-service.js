@@ -180,19 +180,39 @@ async function handleListAccounts(req, verifiedToken) {
     }
 
     try {
-        // TODO: Add pagination
-        const { data, error } = await supabase
+        // Fetch accounts first
+        const { data: accounts, error: accountsError } = await supabase
             .from('accounts')
             .select('id, account_number, account_type, status, currency, nickname') // Select summary fields
             .eq('customer_id', requestingCustomerId); // Filter by verified ID
 
-        if (error) {
-            console.error('Supabase select error listing accounts:', error);
-            return { statusCode: 500, body: JSON.stringify({ message: 'Database error listing accounts', details: error.message }) };
+        if (accountsError) {
+            console.error('Supabase select error listing accounts:', accountsError);
+            return { statusCode: 500, body: JSON.stringify({ message: 'Database error listing accounts', details: accountsError.message }) };
         }
 
-        // TODO: Fetch balance for each account from ledger service (this will be slow without optimization)
-        const accountsWithBalance = data.map(acc => ({ ...acc, balance: 'N/A' /* Placeholder */ }));
+        if (!accounts || accounts.length === 0) {
+             return { statusCode: 200, body: JSON.stringify([]) }; // Return empty array if no accounts
+        }
+
+        // Fetch balance for each account using RPC
+        const accountsWithBalance = await Promise.all(accounts.map(async (acc) => {
+            try {
+                const { data: balanceData, error: balanceError } = await supabase.rpc('calculate_balance', {
+                    p_account_id: acc.id // Pass the account UUID
+                });
+
+                if (balanceError) {
+                    console.error(`Error calculating balance for account ${acc.id}:`, balanceError);
+                    return { ...acc, balance: 'Error' }; // Indicate balance fetch error
+                }
+                return { ...acc, balance: balanceData }; // Add the calculated balance
+            } catch (rpcErr) {
+                 console.error(`RPC Error calculating balance for account ${acc.id}:`, rpcErr);
+                 return { ...acc, balance: 'Error' };
+            }
+        }));
+
 
         return { statusCode: 200, body: JSON.stringify(accountsWithBalance) };
 
@@ -216,36 +236,49 @@ async function handleGetAccount(req, verifiedToken) {
 
 
     try {
-        const { data: accountData, error } = await supabase
+        const { data: accountData, error: accountError } = await supabase
             .from('accounts')
             .select('*') // Select all fields for detail view
             .eq('id', accountId) // Assuming accountId is the UUID primary key
             .single();
 
-        if (error) {
-            if (error.code === 'PGRST116' || error.code === '22P02') { // Not found or invalid UUID format
+        if (accountError) {
+             if (accountError.code === 'PGRST116' || accountError.code === '22P02') { // Not found or invalid UUID format
                 console.log(`Account not found for ID: ${accountId}`);
                 return { statusCode: 404, body: JSON.stringify({ message: 'Account not found' }) };
             }
-            console.error('Supabase select error getting account:', error);
-            return { statusCode: 500, body: JSON.stringify({ message: 'Database error getting account', details: error.message }) };
-        }
-
+            console.error('Supabase select error getting account:', accountError);
+            return { statusCode: 500, body: JSON.stringify({ message: 'Database error getting account', details: accountError.message }) };
+         }
         if (!accountData) {
              console.log(`Account not found for ID: ${accountId}`);
              return { statusCode: 404, body: JSON.stringify({ message: 'Account not found' }) };
         }
 
-        // Authorization: Ensure the token owner owns this account
+        // Authorization check
         const requestingCustomerId = await getCustomerIdFromAuth0Sub(verifiedToken.sub);
         if (!requestingCustomerId || requestingCustomerId !== accountData.customer_id) {
             console.warn(`Auth mismatch: Token sub ${verifiedToken.sub} (customer ${requestingCustomerId}) tried to get account ${accountId} owned by customer ${accountData.customer_id}`);
             return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: You can only view your own accounts.' }) };
+         }
+
+        // Fetch balance using RPC
+        let balance = 'Error'; // Default in case of error
+        try {
+             const { data: balanceData, error: balanceError } = await supabase.rpc('calculate_balance', {
+                p_account_id: accountData.id // Pass the account UUID
+             });
+
+             if (balanceError) {
+                 console.error(`Error calculating balance for account ${accountData.id}:`, balanceError);
+             } else {
+                 balance = balanceData; // Assign the calculated balance
+             }
+        } catch(rpcErr){
+             console.error(`RPC Error calculating balance for account ${accountData.id}:`, rpcErr);
         }
 
-        // TODO: Fetch balance from ledger service
-        const accountWithBalance = { ...accountData, balance: 'N/A' /* Placeholder */ };
-
+        const accountWithBalance = { ...accountData, balance: balance };
 
         return { statusCode: 200, body: JSON.stringify(accountWithBalance) };
 
