@@ -4,6 +4,12 @@
 
 # Specific service routes BEFORE the general API catch-all
 [[redirects]]
+  from = "/api/transaction-service/*"
+  to = "/.netlify/functions/transaction-service"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/account-service/*"
   to = "/.netlify/functions/account-service/account-service"
   status = 200
