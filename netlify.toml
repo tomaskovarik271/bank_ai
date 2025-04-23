@@ -2,7 +2,14 @@
   publish = "public/"
   functions = "functions/"
 
-# Redirect rule for API calls (example)
+# Specific service routes BEFORE the general API catch-all
+[[redirects]]
+  from = "/api/account-service/*"
+  to = "/.netlify/functions/account-service/account-service"
+  status = 200
+  force = true # Make sure this rule is processed first
+
+# General API catch-all rule (example)
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"

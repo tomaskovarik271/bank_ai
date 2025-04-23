@@ -11,6 +11,7 @@ Build a core banking system using microservices deployed on Netlify. The system 
 - **Compliance First:** Ensure all design choices meet regulatory requirements.
 - **Leverage Off-the-Shelf Components:** Utilize existing solutions for common concerns like IAM, security, database, etc., where possible.
 - **Netlify Integration:** Maximize the use of Netlify features (e.g., Identity, Forms, Analytics, Edge Functions) where appropriate.
+- **Open Banking Standard:** Adhere to the principles and specifications of the UK Open Banking Standard ([openbanking.org.uk](https://openbanking.org.uk/)) for API design, security profiles (FAPI), and data models where applicable, promoting interoperability and best practices.
 
 ## 3. Key Considerations
 
@@ -31,6 +32,7 @@ Build a core banking system using microservices deployed on Netlify. The system 
         - *In Transit:* Enforce TLS 1.2+ for all connections (Client <-> Netlify, Function <-> Supabase, Function <-> Auth0, Function <-> VGS, inter-function). Verify library defaults.
         - *At Rest:* Configure Supabase disk encryption. Evaluate/implement column-level or application-level encryption for specific sensitive fields using secure key management. Utilize VGS for tokenizing PCI-scope data (e.g., PANs).
     - **API Security (Netlify Functions):**
+        - *Standard Compliance:* API design to follow Open Banking specifications. Requires security profile compliance (e.g., FAPI via Auth0).
         - *Authentication:* Mandatory Auth0 JWT validation on all function endpoints.
         - *Authorization:* Fine-grained checks within functions based on JWT roles/permissions (least privilege, deny by default).
         - *Input Validation:* Strict validation of all inputs (params, query, body) using robust libraries.
@@ -55,6 +57,7 @@ Build a core banking system using microservices deployed on Netlify. The system 
         - **Rationale:** Mature relational database (PostgreSQL) suitable for banking data integrity and transactions. Designed for serverless environments with features like managed connection pooling (via clients/ORMs) and APIs. Offers essential security features (RLS, SSL). Reduces operational overhead as a managed service.
         - **Security Considerations:** Requires careful configuration of Row Level Security (RLS), network policies (if applicable), encryption settings, and robust access control from Netlify Functions. Connection strings and API keys must be securely managed (e.g., Netlify environment variables).
         - **Compliance:** Need to verify Supabase's specific compliance certifications (e.g., SOC 2, ISO 27001, PCI DSS applicability) against requirements and configure data residency if necessary. Audit logging capabilities need assessment.
+        - **Data Model:** Schema design should align with Open Banking data standards where applicable.
     - **Complementary Service:** **Very Good Security (VGS)**
         - **Consideration:** Explore using VGS to tokenize/vault highly sensitive data (PII, account numbers) *before* it reaches Supabase. This can significantly reduce the compliance scope (e.g., PCI DSS) of the database itself.
 - **Compliance:** Which specific regulations apply (e.g., PCI DSS, GDPR, local banking laws)? How will compliance be audited and maintained?
@@ -69,6 +72,12 @@ Build a core banking system using microservices deployed on Netlify. The system 
             - *General Data Protection Regulation (GDPR):* Strict rules on personal data processing, consent, rights, security, breach notification, data residency.
             - *Payment Services Directive (PSD2):* Strong Customer Authentication (SCA), secure communication, Open Banking APIs (if applicable).
             - *EBA Guidelines:* Detailed expectations for ICT risk management, security, outsourcing.
+    - **Additional Standards/Frameworks (especially if pursuing payment licenses):**
+        - *ISO 27001:* International standard for Information Security Management Systems (ISMS). Demonstrates robust security governance.
+        - *SOC 2 (Type II):* Attestation standard for service organizations, covering Security, Availability, Processing Integrity, Confidentiality, Privacy controls. Essential for B2B services and vendor trust.
+        - *NIST Cybersecurity Framework (US):* Widely adopted framework for managing cybersecurity risk; often referenced by US regulators.
+        - *State Money Transmitter Licenses (US):* Specific state-level requirements covering capital, bonding, BSA/AML programs, cybersecurity.
+        - *Further EBA Guidelines (EU):* Detailed requirements on internal governance, outsourcing, etc., related to payment institution licensing.
     - **High-Level Implications for Architecture:**
         - *Authentication:* Robust MFA/SCA (Auth0 suitable).
         - *Encryption:* Mandatory end-to-end (HTTPS/TLS) and at-rest (Supabase, application-level, VGS for PCI).
@@ -76,7 +85,8 @@ Build a core banking system using microservices deployed on Netlify. The system 
         - *Audit Trails:* Comprehensive, immutable logging across all components (Functions, DB, IAM). Requires evaluating tool capabilities and potentially integrating dedicated logging/SIEM.
         - *Data Privacy/Residency (GDPR):* Mechanisms for consent, data subject rights. Careful vendor selection/configuration for data storage location.
         - *Vulnerability Management:* Continuous scanning, patching, secure coding.
-        - *Vendor Due Diligence:* Review compliance posture of Netlify, Supabase, Auth0, etc. (SOC 2, ISO 27001, PCI DSS, DPAs).
+        - *Vendor Due Diligence:* Review compliance posture of Netlify, Supabase, Auth0, Inngest etc. (SOC 2, ISO 27001, PCI DSS, DPAs). This becomes even more critical for licensing.
+- **Consent Management:** How will user consent for data access (AIS) and payment initiation (PIS), as required by Open Banking and GDPR, be captured, stored securely (e.g., in Supabase), managed (revocation), and enforced at the API level?
 - **Scalability & Reliability:** How will the system handle load? What are Netlify's guarantees?
     - **Scalability:**
         - *Netlify Functions:* Auto-scaling compute. Subject to concurrency, execution time, memory limits (plan-dependent).
@@ -108,6 +118,7 @@ Build a core banking system using microservices deployed on Netlify. The system 
         - Prioritize **Asynchronous Communication & Workflows via Inngest** for decoupling, resilience, and managing complex logic.
         - Use **Synchronous Communication** sparingly for necessary queries.
     - **Next Step:** Perform detailed review of Inngest's compliance documentation (SOC 2 report details, GDPR posture, etc.) against specific banking requirements (GLBA, etc.). Evaluate pricing model against expected load.
+    - **Next Step:** Perform detailed review of Inngest's compliance documentation... Evaluate Auth0 FAPI compliance capabilities.
 - **State Management:** How will application state be managed, especially in a serverless environment?
     - **Challenge:** Netlify Functions are stateless; state must be managed externally.
     - **Persistent Business State:**
@@ -155,8 +166,132 @@ Build a core banking system using microservices deployed on Netlify. The system 
     - **Rollbacks:**
         - Leverage Netlify's instant rollback feature for quick recovery.
 
-## 4. Next Steps
+## 4. Proof of Concept (PoC) Summary
 
-- Research Netlify's capabilities and limitations regarding these considerations.
-- Identify potential off-the-shelf components.
-- Define the initial set of microservices. 
+- **Goal:** Validate core architecture (Netlify Functions, Auth0, Supabase) for user signup/login and basic data interaction.
+- **Scope:**
+    - Frontend UI (HTML/JS) for Auth0 login/signup.
+    - Auth0 integration using SPA SDK.
+    - `customer-service` Netlify Function with endpoints for:
+        - `POST /create`: Triggered post-login to upsert customer data (email, `auth0_user_id`) into Supabase.
+        - `GET /profile`: Fetches customer data from Supabase based on validated Auth0 JWT.
+- **Outcome:** **Successful**. The PoC demonstrated:
+    - Correct configuration and integration of Auth0 for authentication.
+    - Secure JWT validation within a Netlify Function.
+    - Interaction with Supabase using the service role key from a Netlify Function.
+    - Basic end-to-end flow from frontend login to backend data retrieval.
+    - Confirmed viability of the core stack (Netlify Functions + Auth0 + Supabase).
+
+## 5. Next Steps
+
+-   **Design and Develop Core Services (Priority):**
+    -   **`account-service`:** Design API and data model according to Open Banking standards (Current Focus).
+    -   Flesh out `customer-service` (e.g., profile update, KYC trigger placeholder).
+    -   Design and implement `transaction-service` (basic transfer logic using Inngest PoC, align with OB PIS).
+    -   Design `ledger-service` (or DB implementation).
+    -   Design `notification-service`.
+    -   Design **`consent-management-service`** (or integrate logic into other services).
+-   **Refine Technology Choices:**
+    -   Perform detailed review of Inngest's compliance documentation (SOC 2 report details, GDPR posture, etc.) against specific banking requirements (GLBA, etc.). Evaluate pricing model against expected load.
+    -   Perform deeper compliance/security review of Supabase and Auth0 configurations, focusing on FAPI/OB requirements.
+-   **Implement Key Security Controls:** Start hardening the implementation based on the Security section (e.g., FAPI compliance, stricter input validation, centralized logging setup, advanced RLS in Supabase, consent enforcement).
+-   **Establish CI/CD Pipelines:** Fully implement the automated testing and deployment pipelines outlined.
+-   **Define Microservices (Initial Set - Confirmed):**
+    -   `customer-service` (PoC started)
+    -   `account-service`
+    -   `transaction-service`
+    -   `ledger-service`
+    -   `notification-service`
+    -   `consent-management-service`
+
+*Previous Steps included PoC which is now complete.*
+
+## 6. Service Designs
+
+### account-service
+
+*(Design details to be added here, referencing Open Banking Account and Transaction API spec: Responsibilities, API Endpoints, Data Model, Dependencies)*
+
+**1. Core Responsibilities:**
+
+- Create new bank accounts (Checking, Savings) associated with a verified `customer_id`.
+- Retrieve detailed information for a specific account, including calculated balance.
+- List all accounts belonging to a specific customer.
+- Update account status (e.g., active, dormant, closed).
+- Generate unique, non-predictable account numbers.
+- Interface with the `ledger-service` (or underlying ledger tables) to determine account balances.
+- Potentially trigger asynchronous background jobs (via Inngest) for tasks like statement generation.
+
+**2. Proposed API Endpoints (Internal):**
+
+*   `POST /api/account-service/accounts`
+    *   Action: Create account.
+    *   Body: `{ customerId, accountType, currency, nickname? }`
+    *   Response: `201 Created` with new account details.
+*   `GET /api/account-service/accounts?customerId={customerId}`
+    *   Action: List accounts for customer.
+    *   Response: `200 OK` with array of account summaries.
+    *   AuthZ: User must be authorized for `customerId`.
+*   `GET /api/account-service/accounts/{accountId}`
+    *   Action: Get specific account details (inc. balance from ledger).
+    *   Response: `200 OK` with account details.
+    *   AuthZ: User must be authorized for `accountId`.
+*   `PATCH /api/account-service/accounts/{accountId}`
+    *   Action: Update account status.
+    *   Body: `{ status }`
+    *   Response: `200 OK` with updated account.
+    *   AuthZ: Requires appropriate permissions.
+
+**3. Proposed Data Model (`accounts` table in Supabase):**
+
+```sql
+CREATE TYPE public.account_type_enum AS ENUM ('CHECKING', 'SAVINGS');
+CREATE TYPE public.account_status_enum AS ENUM ('ACTIVE', 'DORMANT', 'PENDING_CLOSURE', 'CLOSED');
+
+CREATE TABLE public.accounts (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    customer_id uuid NOT NULL REFERENCES public.customer(id),
+    account_number text NOT NULL UNIQUE,
+    account_type public.account_type_enum NOT NULL,
+    status public.account_status_enum NOT NULL DEFAULT 'ACTIVE'::public.account_status_enum,
+    currency character(3) NOT NULL DEFAULT 'USD'::bpchar,
+    nickname text NULL
+    -- Balance calculated from ledger
+);
+CREATE INDEX idx_accounts_customer_id ON public.accounts(customer_id);
+CREATE INDEX idx_accounts_account_number ON public.accounts(account_number);
+```
+
+**4. Design Decisions & Considerations:**
+
+*   **Account Number Generation:** Needs defining (e.g., DB function, separate service). Start simple (random generation + collision check in code).
+*   **Balance Management:** Balance NOT stored in `accounts` table; retrieved from ledger service/tables.
+*   **Data Types:** Use ENUMs for type/status. UUID for ID. `character(3)` for currency.
+
+**5. Dependencies:**
+
+*   `customer-service` (via `customer_id` FK)
+*   `ledger-service` (or direct DB access for balance)
+*   Auth0 (JWT validation)
+*   Inngest (optional, for background tasks)
+
+### customer-service
+
+*(Refinement details to be added here)*
+
+### transaction-service
+
+*(Design details to be added here)*
+
+### ledger-service
+
+*(Design details to be added here)*
+
+### notification-service
+
+*(Design details to be added here)*
+
+### consent-management-service
+
+*(Design details to be added here: Responsibilities, API Endpoints, Data Model for consent storage, Dependencies)* 
