@@ -93,13 +93,24 @@ async function handleInternalTransfer(req, verifiedToken) {
 
     try {
         // === Authorization Check ===
-        const requestingCustomerId = await getCustomerIdFromAuth0Sub(verifiedToken.sub);
-        if (!requestingCustomerId) {
-            // This should ideally not happen if token is verified, but good practice
-            return { statusCode: 403, body: JSON.stringify({ message: 'Could not identify requesting customer' }) };
+
+        // Check if the token indicates an M2M client
+        const isM2MClient = verifiedToken.gty === 'client_credentials';
+        let requestingCustomerId = null; // Initialize
+
+        if (isM2MClient) {
+            console.log("M2M client detected, bypassing customer ownership checks.");
+            // For M2M clients, we skip customer ID lookup and ownership check
+        } else {
+            // For regular user tokens, perform customer lookup and ownership check
+            requestingCustomerId = await getCustomerIdFromAuth0Sub(verifiedToken.sub);
+            if (!requestingCustomerId) {
+                // This should ideally not happen if token is verified, but good practice
+                return { statusCode: 403, body: JSON.stringify({ message: 'Could not identify requesting customer' }) };
+            }
         }
 
-        // Verify the user owns the 'from' account
+        // Verify the user owns the 'from' account (only if it's not an M2M client)
         const { data: fromAccountData, error: fromAccountError } = await supabase
             .from('accounts')
             .select('customer_id')
@@ -111,7 +122,8 @@ async function handleInternalTransfer(req, verifiedToken) {
             return { statusCode: 404, body: JSON.stringify({ message: `Debit account not found: ${fromAccountId}` }) };
         }
 
-        if (fromAccountData.customer_id !== requestingCustomerId) {
+        // Only check ownership if it's NOT an M2M client
+        if (!isM2MClient && fromAccountData.customer_id !== requestingCustomerId) {
             console.warn(`Auth mismatch: Token sub ${verifiedToken.sub} (customer ${requestingCustomerId}) tried to transfer from account ${fromAccountId} owned by customer ${fromAccountData.customer_id}`);
             return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: You do not own the source account.' }) };
         }
